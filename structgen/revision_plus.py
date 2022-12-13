@@ -20,8 +20,10 @@ class RevisionDecoder_plus(nn.Module):
         self.context = args.context
 
         
+        # transformer layers
         self.nheads = args.nheads
-
+        self.num_layers = args.num_layers
+    
         self.features = ProteinFeatures(
                 top_k=args.k_neighbors, num_rbf=args.num_rbf,
                 features_type='full',
@@ -43,7 +45,10 @@ class RevisionDecoder_plus(nn.Module):
            # )
             
             # RefineGNN+ innovation: 
-            self.ctransformer = new_mod.context_transformer(nhead = self.nheads)
+            self.ctransformer = new_mod.context_transformer(
+                                    num_layers = self.num_layers,
+                                    nhead = self.nheads
+            )
 
             self.W_stc = nn.Sequential(
                     nn.Linear(args.hidden_size * 2, args.hidden_size),
