@@ -81,9 +81,11 @@ def get_args():
 
     # transformer hps
     parser.add_argument('--nheads', type=int, default=4)
-    parser.add_argument('--num_layers', true=int, default=8
+    parser.add_argument('--num_layers', type=int, default=8)
+    
     args = parser.parse_args()
     args.context = True
+    
     return args
 
 def set_SEED(args):
@@ -102,7 +104,7 @@ def get_data(args):
     for path in [args.train_path, args.val_path, args.test_path]:
         
         data = CDRDataset(path, hcdr = args.hcdr)
-        loader = StructureLoader(data.cdrs, batch_tokens = args.batch_tokens, binder_data = data.atgss)
+        loader = StructureLoader(data.cdrs, batch_tokens = args.batch_tokens, binder_data = data.atgs)
         loaders.append(loader)
 
     loader_train, loader_val, loader_test = loaders
@@ -187,8 +189,8 @@ if __name__ == '__main__':
         )
     )
     
-    
-    best_epoch, test_ppl, test_rmsd = train_model
+   
+    best_epoch, test_ppl, test_rmsd = train_model(
                                             args = args,
                                             model = model,
                                             loader_train = loader_train,
