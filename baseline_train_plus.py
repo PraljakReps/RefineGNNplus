@@ -78,10 +78,9 @@ def get_args():
     parser.add_argument('--anneal_rate', type=float, default=0.9)
     parser.add_argument('--print_iter', type=int, default=50)
 
-
     # transformer hps
     parser.add_argument('--nheads', type=int, default=4)
-    parser.add_argument('--num_layers', true=int, default=8
+    parser.add_argument('--num_layers', true=int, default=8)
     args = parser.parse_args()
     args.context = True
     return args
@@ -188,7 +187,7 @@ if __name__ == '__main__':
     )
     
     
-    best_epoch, test_ppl, test_rmsd = train_model
+    best_epoch, test_ppl, test_rmsd = train_model(
                                             args = args,
                                             model = model,
                                             loader_train = loader_train,
