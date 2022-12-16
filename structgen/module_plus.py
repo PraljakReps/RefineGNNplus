@@ -236,14 +236,10 @@ class context_transformer(nn.Module):
         self.emb_dim = emb_dim
         self.time_dim = time_dim
 
-        self.encoder_layer = nn.TransformerEncoderLayer(
-                d_model = self.in_feat_dim,
-                nhead = self.nhead
-        )
-
         self.transformer_encoder = nn.TransformerEncoder(
-                encoder_layer = self.encoder_layer,
-                num_layers = self.num_layers
+                     num_layers = self.num_layers,
+                     emb_dim = self.emb_dim,
+                     nhead = self.nhead,
         )
 
         self.emb_tokens = nn.Embedding(self.alphabet, self.emb_dim)
