@@ -8,7 +8,10 @@ import math, random, sys
 import numpy as np
 import argparse
 import os
+import pandas as pd
 
+
+from structgen import module_plus as new_mod
 from structgen.protein_features import ProteinFeatures
 from structgen.utils import compute_rmsd, self_square_dist, gather_nodes, kabsch
 from collections import namedtuple
@@ -200,15 +203,15 @@ class MPNEncoder(nn.Module):
 class RefineFolder_plus(nn.Module):
 
     def __init__(self, args):
-        super(RefineFolder, self).__init__()
+        super(RefineFolder_plus, self).__init__()
         self.rstep = args.rstep
         self.k_neighbors = args.k_neighbors
         self.hidden_size = args.hidden_size
     
         # transformer hyperparameter
-        self.num_layers = num_layers
-        self.nheads = nhead
-
+        self.num_layers = args.num_layers
+        self.nheads = args.nheads
+        self.emb_dim = args.emb_dim
 
         self.embedding = nn.Embedding(len(ALPHABET), args.hidden_size)
  #       self.rnn = nn.GRU(
@@ -221,8 +224,9 @@ class RefineFolder_plus(nn.Module):
 
         # RefineGNN+ innovation:
         self.ctransformer = new_mod.context_transformer(
-                                           num_layers = self.num_layers,
-                                           nhead = self.nheads
+                                           num_layers=self.num_layers,
+                                           nhead=self.nheads,
+                                           emb_dim=self.emb_dim
         )
 
         self.features = ProteinFeatures(
@@ -243,7 +247,8 @@ class RefineFolder_plus(nn.Module):
         self.huber_loss = nn.SmoothL1Loss(reduction='none')
 
     def encode_scaffold(self, h_S, mask, bind_pos):
-        scaf_h, _ = self.rnn(h_S)
+        #scaf_h, _ = self.rnn(h_S)
+        scaf_h = self.ctransformer(h_S)
         max_len = max([len(pos) for pos in bind_pos])
         bind_h = [scaf_h[i, pos] for i,pos in enumerate(bind_pos)]
         bind_h = [F.pad(h, (0,0,0,max_len-len(h))) for h in bind_h]
@@ -271,8 +276,9 @@ class RefineFolder_plus(nn.Module):
         true_AD = self.features._AD_features(true_X[:,:,1,:])
 
         # Initial coords
-        scaf_S = self.embedding(scaf_S)
+        # scaf_S = self.embedding(scaf_S)
         scaf_mask = scaf_A[:,:,1].clamp(max=1).float()
+
         scaf_h, _ = self.encode_scaffold(scaf_S, scaf_mask, surface)
 
         X = self.W_x0(scaf_h).view(B, N, L, 3)
@@ -319,6 +325,7 @@ def get_args():
     parser.add_argument('--test_path', default='data/sabdab_2022_01/test_data.jsonl')
     parser.add_argument('--save_dir', default='ckpts/tmp')
     parser.add_argument('--load_model', default=None)
+    parser.add_argument('--output_path', default = './output/structure_pred/train_model_cdr123.csv')
 
     parser.add_argument('--cdr', default='123')
 
@@ -343,11 +350,11 @@ def get_args():
     # transformer hyperparameters
     parser.add_argument('--nheads', type=int, default=4)
     parser.add_argument('--num_layers', type=int, default=8)
-    parser.add_argument('--emb_dim', type=float, default=256)
+    parser.add_argument('--emb_dim', type=int, default=256)
 
     args = parser.parse_args()
  
-    return
+    return args
 
 
 def set_SEED(args):
@@ -359,13 +366,13 @@ def set_SEED(args):
     return 
 
 
-def get_data(args)
+def get_data(args):
 
     all_data = []
 
     for path in [args.train_path, args.val_path, args.test_path]:
         
-        data = AntiBodyComplexDataset(
+        data = AntibodyComplexDataset(
                     path,
                     cdr_type=args.cdr,
                     L_binder=args.L_binder,
@@ -384,7 +391,7 @@ def get_data(args)
 
 def prepare_model(args):
 
-    model = RefineFolder(args).cuda()
+    model = RefineFolder_plus(args).cuda()
     optimizer = torch.optim.Adam(model.parameters())
 
     if args.load_model:
@@ -435,7 +442,11 @@ def train_model(args):
     test_rmsd = evaluate(model, loader_test, args)
     print(f'Test Backbone RMSD = {test_rmsd:.3f}')
 
-    return 
+    ckpts = (model.state_dict(), optimizer.state_dict(), args)
+    torch.save(ckpt, os.path.join(args.save_dir.replace('/tmp', ''), f"best_model.ckpt.best"))
+
+
+    return best_epoch, test_rmsd
 
 
 if __name__ == "__main__":
@@ -457,5 +468,19 @@ if __name__ == "__main__":
     )
 
     # train model
-    train_model(args)
+    best_epoch, test_rmsd = train_model(args)
+
+    output_dict = {
+            'best_epoch': list(),
+            'test_rmsd': list()
+    }
+    
+    output_dict['best_epoch'].append(best_epoch)
+    output_dict['test_rmsd'].append(test_rmsd)
+
+    output_df = pd.DataFrame(output_dict)
+    output_df.to_csv(args.output_path, index = False)
+
+
+
 
