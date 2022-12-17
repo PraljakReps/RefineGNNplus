@@ -1,0 +1,2 @@
+num_layers,nheads,hcdr,best_epoch,test_ppl,test_rmsd
+3,8,2,5,6.71710689020411,0.6695139436151392

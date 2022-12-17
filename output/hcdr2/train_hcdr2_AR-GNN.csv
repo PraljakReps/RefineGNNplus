@@ -1,0 +1,2 @@
+,model,best_epoch,test_ppl,test_rmsd
+0,AR-GNN,5,6.814578799919067,2.3083533071061617

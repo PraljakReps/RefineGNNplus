@@ -1,0 +1,2 @@
+,model,best_epoch,test_ppl,test_rmsd
+0,RefineGNNplus_attonly,6,8.78009430156026,2.5737685863999116
