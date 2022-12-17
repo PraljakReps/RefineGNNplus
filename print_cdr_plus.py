@@ -51,7 +51,7 @@ def get_args():
 
 
 
-def set_SEED():
+def set_SEED(args):
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -59,17 +59,20 @@ def set_SEED():
     
     return 
 
-def load_model(args)
+def load_model(args):
 
     model_ckpt, opt_ckpt, model_args = torch.load(args.load_model)
     model = RefineFolder_plus(model_args).cuda()
     model.load_state_dict(model_ckpt)
     model.eval()
     
-    return model
+    return model, model_args
 
 
-def load_data(args):
+def load_data(
+        args,
+        model_args
+    ):
 
     
 
@@ -128,7 +131,11 @@ if __name__ == '__main__':
     args = get_args() # get variables
     set_SEED(args) # set seed for reproducibility
     os.makedirs(args.save_dir, exist_ok=True) # make directory
-
+    model, model_args = load_model(args=args) # load model
+    loader = load_data(
+                args=args,
+                model_args=model_args
+    ) # load data
     niceprint = np.vectorize(lambda x : "%.3f" % (x,))
 
     # predict cdrs and save pdbs 
