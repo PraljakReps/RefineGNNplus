@@ -2,14 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-
+import math
 
 
 class SelfAttention(nn.Module):
 
-    def __init__(self, mask = None, droput = None):
+    def __init__(self, mask = None, dropout = None):
 
-        super(transformer_encoder_layer, self).__init__()
+        super(SelfAttention, self).__init__()
         
         self.mask = mask
         self.dropout = dropout
@@ -22,7 +22,7 @@ class SelfAttention(nn.Module):
         
         # quueries times keys.T
         score = torch.matmul(query, key.transpose(-1, -2)) #BxLxD
-        scaled_score = score / torch.sqrt(dk)
+        scaled_score = score / math.sqrt(dk)
 
         # Increase score to very large negative number for tokens that are masked.
         # such large negative number will have 0 exponential..
@@ -38,7 +38,7 @@ class SelfAttention(nn.Module):
 
     def forward(self, query, key, value, mask = None, dropout = None):
 
-        return self.attention(query, key, value, mask, dropout)
+        return self.attention(query, key, value)
 
 
 class MultiheadAttention(nn.Module):
@@ -46,9 +46,9 @@ class MultiheadAttention(nn.Module):
     def __init__(self, nhead, dmodel, dropout=0.1):
         super(MultiheadAttention, self).__init__()
 
-        assert dmodel % nheads == 0
-        self.dk = dmodel // nheads
-        self.nheads = nheads
+        assert dmodel % nhead == 0
+        self.dk = dmodel // nhead
+        self.nheads = nhead
 
         self.Wq = nn.Linear(dmodel, dmodel)
         self.Wk = nn.Linear(dmodel, dmodel)
@@ -61,6 +61,8 @@ class MultiheadAttention(nn.Module):
         self.dropout = nn.Dropout(p = dropout)
 
     def forward(self, query, key, value, mask = None):
+        
+        nbatches = query.shape[0]
 
         if mask is not None: # apply same mask to all heads
             mask.unsqueeze(1)
@@ -72,7 +74,7 @@ class MultiheadAttention(nn.Module):
         # split up the operations into individual nheads (this is why we needed dmodel % nheads = 0)
         key = key.view(nbatches, -1, self.nheads, self.dk) # (B, L, nheads, dk)
         query = query.view(nbatches, -1, self.nheads, self.dk) # (B, L, nheads, dk)
-        value = value.view(nbatches, -1, self.nheads, selfdk) # (B, L, nheads, dk)
+        value = value.view(nbatches, -1, self.nheads, self.dk) # (B, L, nheads, dk)
         
         
         # swap dims
@@ -91,7 +93,7 @@ class MultiheadAttention(nn.Module):
         
         # reshape tensors: (B, nheads, L, dk) --> z_concat: (B, L, nheads*dk)
         z_concat = z.permute(0, 2, 1, 3) # z: (B, nheads, L, dk) --> z_concat: (B, L, nheads, dk)
-        z_concat = z_concat.contiuous() # z_concat: (B, L, nheads, dk) --> z_concat: (1, B*L*nheads*dk)
+        z_concat = z_concat.contiguous() # z_concat: (B, L, nheads, dk) --> z_concat: (1, B*L*nheads*dk)
         z_concat = z_concat.view(nbatches, -1, self.nheads * self.dk) # z_concat: (1, B*L*nheads*dk) --> z_concat (B,L,nheads*dk)
 
         # Project z_concat with linear layer (Wo) to get final enriched embedding
@@ -112,7 +114,7 @@ class FeedForwardNet(nn.Module):
 
     def forward(self, x):
 
-        h = sel.relu(self.W1(x))
+        h = self.relu(self.W1(x))
         output = self.dropout(self.W2(h))
         return output
 
@@ -141,7 +143,7 @@ class TransformerEncoderLayer(nn.Module):
 
         super(TransformerEncoderLayer, self).__init__()
 
-        self.MHA = MultiheadAttention(nheads, dmodel, dropout)
+        self.MHA = MultiheadAttention(nhead, dmodel, dropout)
         self.add_norm1 = AddandNorm(dmodel, dropout)
         self.FFN = FeedForwardNet(dmodel, dlinear, dropout)
         self.add_norm2 = AddandNorm(dmodel, dropout)
@@ -236,7 +238,7 @@ class context_transformer(nn.Module):
         self.emb_dim = emb_dim
         self.time_dim = time_dim
 
-        self.transformer_encoder = nn.TransformerEncoder(
+        self.transformer_encoder = TransformerEncoder(
                      num_layers = self.num_layers,
                      emb_dim = self.emb_dim,
                      nhead = self.nhead,
@@ -250,7 +252,7 @@ class context_transformer(nn.Module):
         inv_freq = 1.0 / (
                 10000
                 ** (torch.arange(0, channels, 2) / channels)
-        )
+        ).to(self.DEVICE)
 
         pos_enc_a = torch.sin(pos.repeat(1, 1, channels // 2) * inv_freq)
         pos_enc_b = torch.cos(pos.repeat(1, 1, channels // 2) * inv_freq)
@@ -278,7 +280,11 @@ class context_transformer(nn.Module):
 
         # retrieve pos embeddings
         pos_emb = self.compute_pos_encodings(context_seq).to(self.DEVICE)
-
+        pos_emb = self.pos_encoding(
+                        pos = pos_emb,
+                        channels = self.emb_dim
+        ).to(self.DEVICE)
+        
         # retrieve context sequence embedding
         seq_emb = self.emb_tokens(context_seq)
 
